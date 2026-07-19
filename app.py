@@ -132,36 +132,75 @@ with col1:
 generate_btn = st.button("🎥 Generate Ad Video", use_container_width=True)
 video_placeholder = st.empty()
 
-# Helper: create a slide
-def create_slide(text, bg_color, text_color, image=None, duration=3):
+# ---- NEW: Slide creation using PIL (no ImageMagick) ----
+def create_slide(text, bg_color, text_color, image=None, duration=3, font_size=70):
+    # Create a background: either image or solid color
     if image is not None:
-        # Use image as background
-        img_clip = mp.ImageClip(image).resize(height=1080).resize(width=1920)
+        # image is a numpy array (already 1920x1080)
+        bg_img = Image.fromarray(image)
     else:
-        img_clip = mp.ColorClip(size=(1920, 1080), color=bg_color, duration=duration)
+        bg_img = Image.new('RGB', (1920, 1080), color=bg_color)
     
-    # Text overlay – use a simple TextClip with a stroke for readability
-    txt_clip = mp.TextClip(
-        text, 
-        fontsize=70, 
-        color=text_color, 
-        font='Arial', 
-        stroke_color='black', 
-        stroke_width=2,
-        method='label',
-        size=(1800, 800)
-    )
-    txt_clip = txt_clip.set_position(('center', 'center')).set_duration(duration)
-    slide = mp.CompositeVideoClip([img_clip, txt_clip])
-    return slide
+    draw = ImageDraw.Draw(bg_img)
+    # Try to load a standard font, fallback to default
+    try:
+        font = ImageFont.truetype("Arial", font_size)
+    except:
+        font = ImageFont.load_default()
+    
+    # Wrap text to fit within 1800px width
+    max_width = 1800
+    lines = []
+    words = text.split()
+    if not words:
+        lines = [""]
+    else:
+        line = ""
+        for word in words:
+            test_line = line + word + " "
+            bbox = draw.textbbox((0,0), test_line, font=font)
+            w = bbox[2] - bbox[0]
+            if w <= max_width:
+                line = test_line
+            else:
+                if line:
+                    lines.append(line.strip())
+                line = word + " "
+        if line:
+            lines.append(line.strip())
+    
+    # Calculate total text height
+    total_height = 0
+    for line in lines:
+        bbox = draw.textbbox((0,0), line, font=font)
+        total_height += bbox[3] - bbox[1]
+    total_height += (len(lines) - 1) * 10  # spacing
+    
+    y = (1080 - total_height) // 2
+    for line in lines:
+        bbox = draw.textbbox((0,0), line, font=font)
+        w = bbox[2] - bbox[0]
+        x = (1920 - w) // 2
+        # Draw with black stroke for readability
+        draw.text((x-2, y), line, font=font, fill='black')
+        draw.text((x+2, y), line, font=font, fill='black')
+        draw.text((x, y-2), line, font=font, fill='black')
+        draw.text((x, y+2), line, font=font, fill='black')
+        draw.text((x, y), line, font=font, fill=text_color)
+        y += bbox[3] + 10
+    
+    # Convert to numpy array and create ImageClip
+    img_np = np.array(bg_img)
+    clip = mp.ImageClip(img_np).set_duration(duration)
+    return clip
 
-# Generate video function
+# ---- Video generation ----
 def generate_video(product_name, description, cta, primary, secondary, bg, images, voice, music_file):
     temp_dir = tempfile.mkdtemp()
     # Build script
     script = f"Introducing {product_name}. {description} {cta}. Contact us now at (509) 4738-5663 or email deslandes78@gmail.com."
     
-    # Generate audio using edge-tts (async)
+    # Generate audio using edge-tts
     async def tts():
         communicate = edge_tts.Communicate(script, voice)
         audio_path = os.path.join(temp_dir, "voiceover.mp3")
@@ -200,7 +239,6 @@ def generate_video(product_name, description, cta, primary, secondary, bg, image
     # Combine with crossfade
     final_clips = []
     for i, slide in enumerate(slides):
-        # Set duration (already set)
         if i > 0:
             slide = slide.crossfadein(0.5)
         final_clips.append(slide)
@@ -218,24 +256,24 @@ def generate_video(product_name, description, cta, primary, secondary, bg, image
             bg_music = bg_music.loop(duration=video.duration)
         else:
             bg_music = bg_music.subclip(0, video.duration)
-        bg_music = bg_music.volumex(0.3)  # lower volume
+        bg_music = bg_music.volumex(0.3)
         final_audio = mp.CompositeAudioClip([voice_audio, bg_music])
         video = video.set_audio(final_audio)
     
     # Output
     output_path = os.path.join(temp_dir, f"ad_{uuid.uuid4().hex[:8]}.mp4")
     video.write_videofile(
-        output_path, 
-        fps=24, 
-        codec='libx264', 
-        audio_codec='aac', 
+        output_path,
+        fps=24,
+        codec='libx264',
+        audio_codec='aac',
         temp_audiofile=os.path.join(temp_dir, 'temp_audio.m4a'),
         remove_temp=True,
         verbose=False,
         logger=None
     )
     
-    # Cleanup temp files (except output)
+    # Cleanup
     for f in os.listdir(temp_dir):
         if f != os.path.basename(output_path):
             try:
@@ -244,6 +282,7 @@ def generate_video(product_name, description, cta, primary, secondary, bg, image
                 pass
     return output_path
 
+# ---- Generate on button click ----
 if generate_btn:
     if not product_name:
         st.error("Please enter a product name.")
