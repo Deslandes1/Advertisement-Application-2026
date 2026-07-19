@@ -1,0 +1,5 @@
+streamlit
+edge-tts
+moviepy
+Pillow
+numpy
