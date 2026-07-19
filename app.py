@@ -114,10 +114,11 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("📷 Product Images")
-    product_images = st.file_uploader("Upload up to 5 images to show in the video", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
-    if len(product_images) > 5:
-        st.warning("Maximum 5 images. Only first 5 will be used.")
-        product_images = product_images[:5]
+    # Increased limit to 10 images
+    product_images = st.file_uploader("Upload up to 10 images to show in the video", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+    if len(product_images) > 10:
+        st.warning("Maximum 10 images. Only first 10 will be used.")
+        product_images = product_images[:10]
 
     st.markdown("---")
     st.markdown("""
@@ -250,7 +251,6 @@ def generate_video(product_name, description, cta, bg_color, images, voice, musi
     voice_audio = mp.AudioFileClip(audio_path)
     duration = voice_audio.duration
     
-    # Prepare slides: image slides + one final contact slide
     # Reserve 3 seconds for the final contact slide
     contact_duration = 3.0
     image_duration = duration - contact_duration
@@ -259,11 +259,11 @@ def generate_video(product_name, description, cta, bg_color, images, voice, musi
     
     slides = []
     
-    # Build image slides (if any)
+    # Build image slides from all uploaded images
     if images and len(images) > 0:
         slide_count = len(images)
-        # Ensure each slide gets at least 2 seconds
-        max_slides = int(image_duration / 2)
+        # Ensure each slide gets at least 1.5 seconds, but don't exceed reasonable count
+        max_slides = int(image_duration / 1.5)
         if slide_count > max_slides:
             slide_count = max_slides
         if slide_count == 0:
@@ -284,7 +284,6 @@ def generate_video(product_name, description, cta, bg_color, images, voice, musi
     # Add the final contact text slide (big white text, full screen)
     contact_text = "📞 (509) 4738-5663\n📧 deslandes78@gmail.com\nGesner Deslandes\nGlobalInternet.py"
     contact_slide = create_text_slide(contact_text, "#000000", text_color="#FFFFFF", duration=contact_duration, font_size=160, logo_img=None)
-    # Optional: add crossfade from last slide to contact slide
     if slides:
         contact_slide = contact_slide.crossfadein(0.5)
     slides.append(contact_slide)
@@ -341,7 +340,7 @@ if generate_btn:
             try:
                 image_list = []
                 if product_images:
-                    for img_file in product_images[:5]:
+                    for img_file in product_images[:10]:  # up to 10 images
                         pil_img = Image.open(img_file).convert('RGB')
                         pil_img = pil_img.resize((1920, 1080), Image.Resampling.LANCZOS)
                         img_np = np.array(pil_img)
