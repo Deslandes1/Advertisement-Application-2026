@@ -99,8 +99,9 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("🎨 Brand Colors")
-    primary_color = st.color_picker("Primary Color", "#ff4b4b")
-    secondary_color = st.color_picker("Secondary Color", "#1e2a3a")
+    # Default colors updated to match Prisme Transfer's brand (dark blue #174478, light blue #f7fdff, white #ffffff)
+    primary_color = st.color_picker("Primary Color", "#174478")
+    secondary_color = st.color_picker("Secondary Color", "#f7fdff")
     bg_color = st.color_picker("Background Color", "#ffffff")
     
     st.markdown("---")
@@ -125,7 +126,7 @@ with st.sidebar:
 # Main inputs
 col1, col2 = st.columns([2, 1])
 with col1:
-    product_name = st.text_input("Product / Service Name", placeholder="e.g. Lakay se Lakay Platform")
+    product_name = st.text_input("Product / Service Name", placeholder="e.g. Prisme Transfer Haiti")
     product_description = st.text_area("Description / Features", placeholder="Describe your product, its benefits, and key features...", height=150)
     call_to_action = st.text_input("Call to Action", placeholder="Sign up now, Buy today, Learn more...")
 
@@ -197,8 +198,9 @@ def create_slide(text, bg_color, text_color, image=None, duration=3, font_size=7
 # ---- Video generation ----
 def generate_video(product_name, description, cta, primary, secondary, bg, images, voice, music_file):
     temp_dir = tempfile.mkdtemp()
-    # Build script
-    script = f"Introducing {product_name}. {description} {cta}. Contact us now at (509) 4738-5663 or email deslandes78@gmail.com."
+    # Build script: include the product description, CTA, and a custom closing message.
+    closing_message = "If you want an advertisement for your business, get in touch with Gesner Deslandes at GlobalInternet.py. Contact us at (509) 4738-5663 or email deslandes78@gmail.com."
+    script = f"Introducing {product_name}. {description} {cta}. {closing_message}"
     
     # Generate audio using edge-tts
     async def tts():
@@ -211,12 +213,12 @@ def generate_video(product_name, description, cta, primary, secondary, bg, image
     voice_audio = mp.AudioFileClip(audio_path)
     duration = voice_audio.duration
     
-    # Split duration into 4 slides
-    slide_duration = duration / 4.0
+    # Split duration into 5 slides (added a final slide for the closing message)
+    slide_duration = duration / 5.0
     
     slides = []
-    # Slide 1: Title
-    slide1 = create_slide(f"✨ {product_name}", bg, primary, image=images[0] if images else None, duration=slide_duration)
+    # Slide 1: Product Name (big and professional)
+    slide1 = create_slide(f"✨ {product_name}", bg, primary, image=images[0] if images else None, duration=slide_duration, font_size=90)
     slides.append(slide1)
     
     # Slide 2: Description (first sentences)
@@ -235,6 +237,11 @@ def generate_video(product_name, description, cta, primary, secondary, bg, image
     contact_text = f"{cta}\n📞 (509) 4738-5663\n📧 deslandes78@gmail.com"
     slide4 = create_slide(contact_text, bg, secondary, image=images[3] if len(images) > 3 else None, duration=slide_duration)
     slides.append(slide4)
+    
+    # Slide 5: Closing message (Gesner Deslandes / GlobalInternet.py)
+    closing_text = "For your business ads\nContact Gesner Deslandes\nGlobalInternet.py"
+    slide5 = create_slide(closing_text, bg, primary, image=images[4] if len(images) > 4 else None, duration=slide_duration, font_size=80)
+    slides.append(slide5)
     
     # Combine with crossfade
     final_clips = []
