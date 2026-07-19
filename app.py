@@ -100,11 +100,12 @@ with st.sidebar:
     st.info(f"Voice: {selected_voice}")
 
     st.markdown("---")
-    st.subheader("🎨 Brand Colors (Prisme Transfer)")
-    # Prisme Transfer default colors
-    primary_color = st.color_picker("Primary Color (text)", "#174478")
-    secondary_color = st.color_picker("Secondary Color (accent)", "#f7fdff")
-    bg_color = st.color_picker("Background Color", "#e8f4f8")  # light blue-gray
+    st.subheader("🎨 Brand Colors")
+    # Default text color is yellow for high visibility
+    text_color = st.color_picker("Text Color (main)", "#FFD700")
+    secondary_text_color = st.color_picker("Secondary Text Color", "#FFFFFF")
+    bg_color = st.color_picker("Background Color", "#1a2a4a")  # dark blue for contrast
+    accent_color = st.color_picker("Accent Color (for borders/headers)", "#174478")
 
     st.markdown("---")
     st.subheader("🖼️ Logo Upload")
@@ -139,9 +140,9 @@ with col1:
 generate_btn = st.button("🎥 Generate Ad Video", use_container_width=True)
 video_placeholder = st.empty()
 
-# ---- Helper: create a gradient background (light blue to white) ----
-def create_gradient_bg(width=1920, height=1080, color1=(255,255,255), color2=(200,230,255)):
-    """Create a vertical gradient image."""
+# ---- Helper: create a gradient background ----
+def create_gradient_bg(width=1920, height=1080, color1=(20,40,80), color2=(10,20,50)):
+    """Create a vertical gradient image with dark blue tones for contrast."""
     img = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(img)
     for y in range(height):
@@ -152,30 +153,31 @@ def create_gradient_bg(width=1920, height=1080, color1=(255,255,255), color2=(20
         draw.line([(0, y), (width, y)], fill=(r, g, b))
     return img
 
-# ---- Slide creation with BIG text ----
-def create_slide(text, bg_color, text_color, image=None, duration=3, font_size=100, logo_img=None, accent_color=None):
+# ---- Slide creation with BIG YELLOW text ----
+def create_slide(text, bg_color, text_color, image=None, duration=3, font_size=130, logo_img=None, accent_color=None):
     if image is not None:
         bg_img = Image.fromarray(image).resize((1920, 1080), Image.Resampling.LANCZOS)
     else:
-        # Create a gradient background
+        # Create a gradient background using bg_color
         def hex_to_rgb(hex_color):
             hex_color = hex_color.lstrip('#')
             return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
         base_rgb = hex_to_rgb(bg_color)
-        light_rgb = (min(base_rgb[0]+50, 255), min(base_rgb[1]+50, 255), min(base_rgb[2]+50, 255))
-        bg_img = create_gradient_bg(1920, 1080, base_rgb, light_rgb)
+        # Darken for gradient end
+        dark_rgb = (max(base_rgb[0]-30, 0), max(base_rgb[1]-30, 0), max(base_rgb[2]-30, 0))
+        bg_img = create_gradient_bg(1920, 1080, base_rgb, dark_rgb)
     
     draw = ImageDraw.Draw(bg_img)
-    # Use Arial Bold for better readability, fallback to default
+    # Use a bold font for readability
     try:
         font = ImageFont.truetype("Arial", font_size)
     except:
         try:
-            font = ImageFont.truetype("arialbd.ttf", font_size)  # bold version
+            font = ImageFont.truetype("arialbd.ttf", font_size)
         except:
             font = ImageFont.load_default()
     
-    # Wrap text to fit within 1600px width (leaves margins)
+    # Wrap text to fit within 1600px width
     max_width = 1600
     lines = []
     words = text.split()
@@ -201,21 +203,21 @@ def create_slide(text, bg_color, text_color, image=None, duration=3, font_size=1
     for line in lines:
         bbox = draw.textbbox((0,0), line, font=font)
         total_height += bbox[3] - bbox[1]
-    total_height += (len(lines) - 1) * 15  # spacing
+    total_height += (len(lines) - 1) * 20
     
     y = (1080 - total_height) // 2
     for line in lines:
         bbox = draw.textbbox((0,0), line, font=font)
         w = bbox[2] - bbox[0]
         x = (1920 - w) // 2
-        # Draw black stroke for readability (thicker stroke for big text)
-        stroke_width = 4
-        for dx in range(-stroke_width, stroke_width+1, 2):
-            for dy in range(-stroke_width, stroke_width+1, 2):
+        # Draw a thick dark outline for contrast
+        outline_color = 'black'
+        for dx in range(-4, 5, 2):
+            for dy in range(-4, 5, 2):
                 if dx != 0 or dy != 0:
-                    draw.text((x+dx, y+dy), line, font=font, fill='black')
+                    draw.text((x+dx, y+dy), line, font=font, fill=outline_color)
         draw.text((x, y), line, font=font, fill=text_color)
-        y += bbox[3] + 15
+        y += bbox[3] + 20
     
     # If logo provided, overlay it on the top-right corner
     if logo_img is not None:
@@ -229,7 +231,7 @@ def create_slide(text, bg_color, text_color, image=None, duration=3, font_size=1
     return clip
 
 # ---- Video generation ----
-def generate_video(product_name, description, cta, primary, secondary, bg, images, voice, music_file, logo_data):
+def generate_video(product_name, description, cta, text_color, secondary_text_color, bg_color, images, voice, music_file, logo_data):
     temp_dir = tempfile.mkdtemp()
     # Build script
     closing_message = "If you want an advertisement for your business, get in touch with Gesner Deslandes at GlobalInternet.py. Contact us at (509) 4738-5663 or email deslandes78@gmail.com."
@@ -250,35 +252,35 @@ def generate_video(product_name, description, cta, primary, secondary, bg, image
     slide_duration = duration / 5.0
     
     slides = []
-    # Slide 1: Product Name (BIG - 130px)
-    slide1 = create_slide(f"✨ {product_name}", bg, primary, image=images[0] if images else None,
-                          duration=slide_duration, font_size=130, logo_img=logo_data, accent_color=secondary)
+    # Slide 1: Product Name (BIG - 160px)
+    slide1 = create_slide(f"✨ {product_name}", bg_color, text_color, image=images[0] if images else None,
+                          duration=slide_duration, font_size=160, logo_img=logo_data)
     slides.append(slide1)
     
-    # Slide 2: Description (100px)
+    # Slide 2: Description (130px)
     desc_sentences = description.split('.')
     desc_text = '\n'.join([s.strip() for s in desc_sentences if s.strip()][:3])
-    slide2 = create_slide(desc_text, bg, secondary, image=images[1] if len(images) > 1 else None,
-                          duration=slide_duration, font_size=100, logo_img=logo_data)
+    slide2 = create_slide(desc_text, bg_color, secondary_text_color, image=images[1] if len(images) > 1 else None,
+                          duration=slide_duration, font_size=130, logo_img=logo_data)
     slides.append(slide2)
     
-    # Slide 3: Features (100px)
+    # Slide 3: Features (130px)
     features = description.split('.')
     feature_text = '\n'.join([f'• {f.strip()}' for f in features if f.strip()][:4])
-    slide3 = create_slide(feature_text, bg, primary, image=images[2] if len(images) > 2 else None,
-                          duration=slide_duration, font_size=100, logo_img=logo_data)
+    slide3 = create_slide(feature_text, bg_color, text_color, image=images[2] if len(images) > 2 else None,
+                          duration=slide_duration, font_size=130, logo_img=logo_data)
     slides.append(slide3)
     
-    # Slide 4: CTA + Contact (100px)
+    # Slide 4: CTA + Contact (130px)
     contact_text = f"{cta}\n📞 (509) 4738-5663\n📧 deslandes78@gmail.com"
-    slide4 = create_slide(contact_text, bg, secondary, image=images[3] if len(images) > 3 else None,
-                          duration=slide_duration, font_size=100, logo_img=logo_data)
+    slide4 = create_slide(contact_text, bg_color, secondary_text_color, image=images[3] if len(images) > 3 else None,
+                          duration=slide_duration, font_size=130, logo_img=logo_data)
     slides.append(slide4)
     
-    # Slide 5: Closing message (120px)
+    # Slide 5: Closing message (140px)
     closing_text = "For your business ads\nContact Gesner Deslandes\nGlobalInternet.py"
-    slide5 = create_slide(closing_text, bg, primary, image=images[4] if len(images) > 4 else None,
-                          duration=slide_duration, font_size=120, logo_img=logo_data)
+    slide5 = create_slide(closing_text, bg_color, text_color, image=images[4] if len(images) > 4 else None,
+                          duration=slide_duration, font_size=140, logo_img=logo_data)
     slides.append(slide5)
     
     # Crossfade
@@ -354,8 +356,8 @@ if generate_btn:
                     product_name,
                     product_description,
                     call_to_action,
-                    primary_color,
-                    secondary_color,
+                    text_color,               # main text color (yellow)
+                    secondary_text_color,     # secondary text color (white)
                     bg_color,
                     image_list,
                     selected_voice,
