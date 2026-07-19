@@ -152,30 +152,31 @@ def create_gradient_bg(width=1920, height=1080, color1=(255,255,255), color2=(20
         draw.line([(0, y), (width, y)], fill=(r, g, b))
     return img
 
-# ---- Slide creation with gradient background and optional logo ----
-def create_slide(text, bg_color, text_color, image=None, duration=3, font_size=70, logo_img=None, accent_color=None):
+# ---- Slide creation with BIG text ----
+def create_slide(text, bg_color, text_color, image=None, duration=3, font_size=100, logo_img=None, accent_color=None):
     if image is not None:
         bg_img = Image.fromarray(image).resize((1920, 1080), Image.Resampling.LANCZOS)
     else:
-        # Create a gradient background using bg_color as base and accent_color for variation
-        # Convert hex to RGB
+        # Create a gradient background
         def hex_to_rgb(hex_color):
             hex_color = hex_color.lstrip('#')
             return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
         base_rgb = hex_to_rgb(bg_color)
-        # Lighten for gradient end
         light_rgb = (min(base_rgb[0]+50, 255), min(base_rgb[1]+50, 255), min(base_rgb[2]+50, 255))
         bg_img = create_gradient_bg(1920, 1080, base_rgb, light_rgb)
     
     draw = ImageDraw.Draw(bg_img)
-    # Try to load a standard font, fallback to default
+    # Use Arial Bold for better readability, fallback to default
     try:
         font = ImageFont.truetype("Arial", font_size)
     except:
-        font = ImageFont.load_default()
+        try:
+            font = ImageFont.truetype("arialbd.ttf", font_size)  # bold version
+        except:
+            font = ImageFont.load_default()
     
-    # Wrap text to fit within 1800px width
-    max_width = 1800
+    # Wrap text to fit within 1600px width (leaves margins)
+    max_width = 1600
     lines = []
     words = text.split()
     if not words:
@@ -200,27 +201,26 @@ def create_slide(text, bg_color, text_color, image=None, duration=3, font_size=7
     for line in lines:
         bbox = draw.textbbox((0,0), line, font=font)
         total_height += bbox[3] - bbox[1]
-    total_height += (len(lines) - 1) * 10
+    total_height += (len(lines) - 1) * 15  # spacing
     
     y = (1080 - total_height) // 2
     for line in lines:
         bbox = draw.textbbox((0,0), line, font=font)
         w = bbox[2] - bbox[0]
         x = (1920 - w) // 2
-        # Draw with black stroke for readability
-        draw.text((x-2, y), line, font=font, fill='black')
-        draw.text((x+2, y), line, font=font, fill='black')
-        draw.text((x, y-2), line, font=font, fill='black')
-        draw.text((x, y+2), line, font=font, fill='black')
+        # Draw black stroke for readability (thicker stroke for big text)
+        stroke_width = 4
+        for dx in range(-stroke_width, stroke_width+1, 2):
+            for dy in range(-stroke_width, stroke_width+1, 2):
+                if dx != 0 or dy != 0:
+                    draw.text((x+dx, y+dy), line, font=font, fill='black')
         draw.text((x, y), line, font=font, fill=text_color)
-        y += bbox[3] + 10
+        y += bbox[3] + 15
     
-    # If logo provided, overlay it on the top-right corner (or any position)
+    # If logo provided, overlay it on the top-right corner
     if logo_img is not None:
         logo = Image.open(BytesIO(logo_img)).convert('RGBA')
-        # Resize logo to max height 120px, maintain aspect
         logo.thumbnail((200, 120), Image.Resampling.LANCZOS)
-        # Paste on top-right with some margin
         bg_img.paste(logo, (bg_img.width - logo.width - 30, 30), logo)
     
     # Convert to numpy array and create ImageClip
@@ -250,35 +250,35 @@ def generate_video(product_name, description, cta, primary, secondary, bg, image
     slide_duration = duration / 5.0
     
     slides = []
-    # Slide 1: Product Name (big)
+    # Slide 1: Product Name (BIG - 130px)
     slide1 = create_slide(f"✨ {product_name}", bg, primary, image=images[0] if images else None,
-                          duration=slide_duration, font_size=90, logo_img=logo_data, accent_color=secondary)
+                          duration=slide_duration, font_size=130, logo_img=logo_data, accent_color=secondary)
     slides.append(slide1)
     
-    # Slide 2: Description
+    # Slide 2: Description (100px)
     desc_sentences = description.split('.')
     desc_text = '\n'.join([s.strip() for s in desc_sentences if s.strip()][:3])
     slide2 = create_slide(desc_text, bg, secondary, image=images[1] if len(images) > 1 else None,
-                          duration=slide_duration, logo_img=logo_data)
+                          duration=slide_duration, font_size=100, logo_img=logo_data)
     slides.append(slide2)
     
-    # Slide 3: Features
+    # Slide 3: Features (100px)
     features = description.split('.')
     feature_text = '\n'.join([f'• {f.strip()}' for f in features if f.strip()][:4])
     slide3 = create_slide(feature_text, bg, primary, image=images[2] if len(images) > 2 else None,
-                          duration=slide_duration, logo_img=logo_data)
+                          duration=slide_duration, font_size=100, logo_img=logo_data)
     slides.append(slide3)
     
-    # Slide 4: CTA + Contact
+    # Slide 4: CTA + Contact (100px)
     contact_text = f"{cta}\n📞 (509) 4738-5663\n📧 deslandes78@gmail.com"
     slide4 = create_slide(contact_text, bg, secondary, image=images[3] if len(images) > 3 else None,
-                          duration=slide_duration, logo_img=logo_data)
+                          duration=slide_duration, font_size=100, logo_img=logo_data)
     slides.append(slide4)
     
-    # Slide 5: Closing message
+    # Slide 5: Closing message (120px)
     closing_text = "For your business ads\nContact Gesner Deslandes\nGlobalInternet.py"
     slide5 = create_slide(closing_text, bg, primary, image=images[4] if len(images) > 4 else None,
-                          duration=slide_duration, font_size=80, logo_img=logo_data)
+                          duration=slide_duration, font_size=120, logo_img=logo_data)
     slides.append(slide5)
     
     # Crossfade
@@ -348,7 +348,7 @@ if generate_btn:
                 # Read logo file if provided
                 logo_data = None
                 if logo_file:
-                    logo_data = logo_file.read()  # bytes
+                    logo_data = logo_file.read()
                 
                 video_path = generate_video(
                     product_name,
