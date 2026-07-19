@@ -101,11 +101,8 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("🎨 Brand Colors")
-    # Default text color is yellow for high visibility
-    text_color = st.color_picker("Text Color (main)", "#FFD700")
-    secondary_text_color = st.color_picker("Secondary Text Color", "#FFFFFF")
-    bg_color = st.color_picker("Background Color", "#1a2a4a")  # dark blue for contrast
-    accent_color = st.color_picker("Accent Color (for borders/headers)", "#174478")
+    bg_color = st.color_picker("Background Color (for slides)", "#1a2a4a")
+    accent_color = st.color_picker("Accent Color", "#174478")
 
     st.markdown("---")
     st.subheader("🖼️ Logo Upload")
@@ -117,7 +114,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("📷 Product Images")
-    product_images = st.file_uploader("Upload up to 5 images", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+    product_images = st.file_uploader("Upload up to 5 images to show in the video", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
     if len(product_images) > 5:
         st.warning("Maximum 5 images. Only first 5 will be used.")
         product_images = product_images[:5]
@@ -142,7 +139,7 @@ video_placeholder = st.empty()
 
 # ---- Helper: create a gradient background ----
 def create_gradient_bg(width=1920, height=1080, color1=(20,40,80), color2=(10,20,50)):
-    """Create a vertical gradient image with dark blue tones for contrast."""
+    """Create a vertical gradient image."""
     img = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(img)
     for y in range(height):
@@ -153,22 +150,11 @@ def create_gradient_bg(width=1920, height=1080, color1=(20,40,80), color2=(10,20
         draw.line([(0, y), (width, y)], fill=(r, g, b))
     return img
 
-# ---- Slide creation with BIG YELLOW text ----
-def create_slide(text, bg_color, text_color, image=None, duration=3, font_size=130, logo_img=None, accent_color=None):
-    if image is not None:
-        bg_img = Image.fromarray(image).resize((1920, 1080), Image.Resampling.LANCZOS)
-    else:
-        # Create a gradient background using bg_color
-        def hex_to_rgb(hex_color):
-            hex_color = hex_color.lstrip('#')
-            return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        base_rgb = hex_to_rgb(bg_color)
-        # Darken for gradient end
-        dark_rgb = (max(base_rgb[0]-30, 0), max(base_rgb[1]-30, 0), max(base_rgb[2]-30, 0))
-        bg_img = create_gradient_bg(1920, 1080, base_rgb, dark_rgb)
-    
+# ---- Create a text-only slide for contact info ----
+def create_text_slide(text, bg_color, text_color="#FFFFFF", duration=3, font_size=160, logo_img=None):
+    """Create a slide with large centered text on a dark background."""
+    bg_img = create_gradient_bg(1920, 1080, (0,0,0), (10,10,30))  # dark gradient for contrast
     draw = ImageDraw.Draw(bg_img)
-    # Use a bold font for readability
     try:
         font = ImageFont.truetype("Arial", font_size)
     except:
@@ -177,7 +163,7 @@ def create_slide(text, bg_color, text_color, image=None, duration=3, font_size=1
         except:
             font = ImageFont.load_default()
     
-    # Wrap text to fit within 1600px width
+    # Wrap text into lines
     max_width = 1600
     lines = []
     words = text.split()
@@ -198,7 +184,7 @@ def create_slide(text, bg_color, text_color, image=None, duration=3, font_size=1
         if line:
             lines.append(line.strip())
     
-    # Calculate total text height
+    # Calculate total height
     total_height = 0
     for line in lines:
         bbox = draw.textbbox((0,0), line, font=font)
@@ -210,12 +196,8 @@ def create_slide(text, bg_color, text_color, image=None, duration=3, font_size=1
         bbox = draw.textbbox((0,0), line, font=font)
         w = bbox[2] - bbox[0]
         x = (1920 - w) // 2
-        # Draw a thick dark outline for contrast
-        outline_color = 'black'
-        for dx in range(-4, 5, 2):
-            for dy in range(-4, 5, 2):
-                if dx != 0 or dy != 0:
-                    draw.text((x+dx, y+dy), line, font=font, fill=outline_color)
+        # Draw with a slight shadow for readability
+        draw.text((x+4, y+4), line, font=font, fill='black')
         draw.text((x, y), line, font=font, fill=text_color)
         y += bbox[3] + 20
     
@@ -225,16 +207,36 @@ def create_slide(text, bg_color, text_color, image=None, duration=3, font_size=1
         logo.thumbnail((200, 120), Image.Resampling.LANCZOS)
         bg_img.paste(logo, (bg_img.width - logo.width - 30, 30), logo)
     
-    # Convert to numpy array and create ImageClip
+    img_np = np.array(bg_img)
+    clip = mp.ImageClip(img_np).set_duration(duration)
+    return clip
+
+# ---- Slide creation without text (background + optional logo) ----
+def create_slide(bg_color, image=None, duration=3, logo_img=None):
+    if image is not None:
+        bg_img = Image.fromarray(image).resize((1920, 1080), Image.Resampling.LANCZOS)
+    else:
+        def hex_to_rgb(hex_color):
+            hex_color = hex_color.lstrip('#')
+            return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        base_rgb = hex_to_rgb(bg_color)
+        dark_rgb = (max(base_rgb[0]-30, 0), max(base_rgb[1]-30, 0), max(base_rgb[2]-30, 0))
+        bg_img = create_gradient_bg(1920, 1080, base_rgb, dark_rgb)
+    
+    if logo_img is not None:
+        logo = Image.open(BytesIO(logo_img)).convert('RGBA')
+        logo.thumbnail((200, 120), Image.Resampling.LANCZOS)
+        bg_img.paste(logo, (bg_img.width - logo.width - 30, 30), logo)
+    
     img_np = np.array(bg_img)
     clip = mp.ImageClip(img_np).set_duration(duration)
     return clip
 
 # ---- Video generation ----
-def generate_video(product_name, description, cta, text_color, secondary_text_color, bg_color, images, voice, music_file, logo_data):
+def generate_video(product_name, description, cta, bg_color, images, voice, music_file, logo_data):
     temp_dir = tempfile.mkdtemp()
-    # Build script
-    closing_message = "If you want an advertisement for your business, get in touch with Gesner Deslandes at GlobalInternet.py. Contact us at (509) 4738-5663 or email deslandes78@gmail.com."
+    # Build script (spoken by AI)
+    closing_message = "For more information, contact us at (509) 4738-5663 or email deslandes78@gmail.com. If you want an advertisement for your business, get in touch with Gesner Deslandes at GlobalInternet.py."
     script = f"Introducing {product_name}. {description} {cta}. {closing_message}"
     
     # Generate audio
@@ -248,52 +250,50 @@ def generate_video(product_name, description, cta, text_color, secondary_text_co
     voice_audio = mp.AudioFileClip(audio_path)
     duration = voice_audio.duration
     
-    # 5 slides
-    slide_duration = duration / 5.0
+    # Prepare slides: image slides + one final contact slide
+    # Reserve 3 seconds for the final contact slide
+    contact_duration = 3.0
+    image_duration = duration - contact_duration
+    if image_duration < 1:
+        image_duration = 1  # ensure at least 1 second for images
     
     slides = []
-    # Slide 1: Product Name (BIG - 160px)
-    slide1 = create_slide(f"✨ {product_name}", bg_color, text_color, image=images[0] if images else None,
-                          duration=slide_duration, font_size=160, logo_img=logo_data)
-    slides.append(slide1)
     
-    # Slide 2: Description (130px)
-    desc_sentences = description.split('.')
-    desc_text = '\n'.join([s.strip() for s in desc_sentences if s.strip()][:3])
-    slide2 = create_slide(desc_text, bg_color, secondary_text_color, image=images[1] if len(images) > 1 else None,
-                          duration=slide_duration, font_size=130, logo_img=logo_data)
-    slides.append(slide2)
+    # Build image slides (if any)
+    if images and len(images) > 0:
+        slide_count = len(images)
+        # Ensure each slide gets at least 2 seconds
+        max_slides = int(image_duration / 2)
+        if slide_count > max_slides:
+            slide_count = max_slides
+        if slide_count == 0:
+            slide_count = 1
+        images_to_use = images[:slide_count]
+        slide_duration = image_duration / slide_count
+        for i in range(slide_count):
+            img = images_to_use[i]
+            slide = create_slide(bg_color, image=img, duration=slide_duration, logo_img=logo_data)
+            if i > 0:
+                slide = slide.crossfadein(0.5)
+            slides.append(slide)
+    else:
+        # No images – use a single gradient slide for the main duration
+        slide = create_slide(bg_color, image=None, duration=image_duration, logo_img=logo_data)
+        slides.append(slide)
     
-    # Slide 3: Features (130px)
-    features = description.split('.')
-    feature_text = '\n'.join([f'• {f.strip()}' for f in features if f.strip()][:4])
-    slide3 = create_slide(feature_text, bg_color, text_color, image=images[2] if len(images) > 2 else None,
-                          duration=slide_duration, font_size=130, logo_img=logo_data)
-    slides.append(slide3)
+    # Add the final contact text slide (big white text, full screen)
+    contact_text = "📞 (509) 4738-5663\n📧 deslandes78@gmail.com\nGesner Deslandes\nGlobalInternet.py"
+    contact_slide = create_text_slide(contact_text, "#000000", text_color="#FFFFFF", duration=contact_duration, font_size=160, logo_img=None)
+    # Optional: add crossfade from last slide to contact slide
+    if slides:
+        contact_slide = contact_slide.crossfadein(0.5)
+    slides.append(contact_slide)
     
-    # Slide 4: CTA + Contact (130px)
-    contact_text = f"{cta}\n📞 (509) 4738-5663\n📧 deslandes78@gmail.com"
-    slide4 = create_slide(contact_text, bg_color, secondary_text_color, image=images[3] if len(images) > 3 else None,
-                          duration=slide_duration, font_size=130, logo_img=logo_data)
-    slides.append(slide4)
-    
-    # Slide 5: Closing message (140px)
-    closing_text = "For your business ads\nContact Gesner Deslandes\nGlobalInternet.py"
-    slide5 = create_slide(closing_text, bg_color, text_color, image=images[4] if len(images) > 4 else None,
-                          duration=slide_duration, font_size=140, logo_img=logo_data)
-    slides.append(slide5)
-    
-    # Crossfade
-    final_clips = []
-    for i, slide in enumerate(slides):
-        if i > 0:
-            slide = slide.crossfadein(0.5)
-        final_clips.append(slide)
-    
-    video = mp.concatenate_videoclips(final_clips, method="compose")
+    # Concatenate all slides
+    video = mp.concatenate_videoclips(slides, method="compose")
     video = video.set_audio(voice_audio)
     
-    # Background music
+    # Add background music
     if music_file:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
             tmp.write(music_file.read())
@@ -347,7 +347,6 @@ if generate_btn:
                         img_np = np.array(pil_img)
                         image_list.append(img_np)
                 
-                # Read logo file if provided
                 logo_data = None
                 if logo_file:
                     logo_data = logo_file.read()
@@ -356,8 +355,6 @@ if generate_btn:
                     product_name,
                     product_description,
                     call_to_action,
-                    text_color,               # main text color (yellow)
-                    secondary_text_color,     # secondary text color (white)
                     bg_color,
                     image_list,
                     selected_voice,
