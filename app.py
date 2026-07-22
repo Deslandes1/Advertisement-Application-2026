@@ -11,8 +11,8 @@ layout="wide",
 initial_sidebar_state="expanded"
 )
 
-# ---- CSS (défini dans une variable pour éviter les erreurs de syntaxe) ----
-css = """
+# ---- CSS (défini en chaîne brute pour éviter toute erreur de syntaxe) ----
+CSS = r"""
 <style>
 .main { background: #f8f9fa; }
 .stButton>button {
@@ -51,7 +51,7 @@ css = """
 }
 </style>
 """
-st.markdown(css, unsafe_allow_html=True)
+st.markdown(CSS, unsafe_allow_html=True)
 
 st.markdown('<div class="title">🎬 Générateur de Vidéo Publicitaire</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Créez des vidéos professionnelles avec voix IA, couleurs personnalisées et musique</div>', unsafe_allow_html=True)
