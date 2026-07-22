@@ -4,7 +4,7 @@ import os
 import asyncio
 import edge_tts
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 import base64
 import uuid
 import time
@@ -13,22 +13,25 @@ from io import BytesIO
 import subprocess
 import sys
 
-# Vérification de FFmpeg (indispensable pour moviepy)
+# ---- Forcer l'utilisation du binaire FFmpeg fourni par imageio-ffmpeg ----
 try:
-    subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
-except (subprocess.SubprocessError, FileNotFoundError):
-    st.error("❌ FFmpeg n'est pas installé. Installez-le (sudo apt install ffmpeg) et redémarrez.")
+    import imageio_ffmpeg
+    ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+    from moviepy.config import change_settings
+    change_settings({"FFMPEG_BINARY": ffmpeg_path})
+except ImportError:
+    st.error("❌ imageio-ffmpeg n'est pas installé. Ajoutez-le dans requirements.txt.")
     st.stop()
 
-# Import moviepy avec gestion d'erreur
+# ---- Importer moviepy ----
 try:
     import moviepy.editor as mp
-    from moviepy.editor import VideoFileClip, AudioFileClip, CompositeVideoClip, TextClip, ImageClip, concatenate_videoclips, ColorClip
+    from moviepy.editor import VideoFileClip, AudioFileClip, CompositeVideoClip, ImageClip, concatenate_videoclips
 except ImportError as e:
     st.error(f"❌ moviepy n'est pas installé : {e}")
     st.stop()
 
-# Configuration de la page
+# ---- Configuration de la page ----
 st.set_page_config(
     page_title="Générateur de Pub IA",
     page_icon="📹",
@@ -36,7 +39,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# CSS
+# ---- CSS ----
 st.markdown("""
 <style>
     .main { background: #f8f9fa; }
@@ -80,7 +83,7 @@ st.markdown("""
 st.markdown('<div class="title">🎬 Générateur de Vidéo Publicitaire</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Créez des vidéos professionnelles avec voix IA, couleurs personnalisées et musique</div>', unsafe_allow_html=True)
 
-# Sidebar
+# ---- Sidebar ----
 with st.sidebar:
     st.header("⚙️ Paramètres")
     voice_lang = st.selectbox(
@@ -111,7 +114,7 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("🎨 Couleurs")
     bg_color = st.color_picker("Couleur de fond", "#1a2a4a")
-    accent_color = st.color_picker("Couleur d'accent", "#174478")
+    accent_color = st.color_picker("Couleur d'accent", "#174478")  # (non utilisé ici, mais gardé pour l'extension)
 
     st.markdown("---")
     st.subheader("🖼️ Logo")
@@ -136,7 +139,7 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-# Entrées principales
+# ---- Entrées principales ----
 col1, col2 = st.columns([2, 1])
 with col1:
     product_name = st.text_input("Nom du produit / service", placeholder="ex. Prisme Transfer Haïti")
@@ -146,8 +149,8 @@ with col1:
 generate_btn = st.button("🎥 Générer la vidéo", use_container_width=True)
 video_placeholder = st.empty()
 
-# ---- Helper : dégradé de fond ----
-def create_gradient_bg(width=1280, height=720, color1=(20,40,80), color2=(10,20,50)):
+# ---- Helper : dégradé de fond (résolution réduite) ----
+def create_gradient_bg(width=854, height=480, color1=(20,40,80), color2=(10,20,50)):
     img = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(img)
     for y in range(height):
@@ -161,7 +164,6 @@ def create_gradient_bg(width=1280, height=720, color1=(20,40,80), color2=(10,20,
 # ---- Création d'une diapositive (fond + logo éventuel) ----
 def create_slide(bg_color, image=None, duration=3, logo_img=None):
     if image is not None:
-        # L'image est déjà un numpy array de taille 1280x720
         bg_img = Image.fromarray(image)
     else:
         def hex_to_rgb(hex_color):
@@ -169,12 +171,12 @@ def create_slide(bg_color, image=None, duration=3, logo_img=None):
             return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
         base_rgb = hex_to_rgb(bg_color)
         dark_rgb = (max(base_rgb[0]-30, 0), max(base_rgb[1]-30, 0), max(base_rgb[2]-30, 0))
-        bg_img = create_gradient_bg(1280, 720, base_rgb, dark_rgb)
+        bg_img = create_gradient_bg(854, 480, base_rgb, dark_rgb)
     
     if logo_img is not None:
         logo = Image.open(BytesIO(logo_img)).convert('RGBA')
-        logo.thumbnail((150, 90), Image.Resampling.LANCZOS)
-        bg_img.paste(logo, (bg_img.width - logo.width - 20, 20), logo)
+        logo.thumbnail((120, 80), Image.Resampling.LANCZOS)
+        bg_img.paste(logo, (bg_img.width - logo.width - 15, 15), logo)
     
     img_np = np.array(bg_img)
     clip = mp.ImageClip(img_np).set_duration(duration)
@@ -243,7 +245,7 @@ def generate_video(product_name, description, cta, bg_color, images, voice, musi
         video = video.set_audio(final_audio)
     
     output_path = os.path.join(temp_dir, f"ad_{uuid.uuid4().hex[:8]}.mp4")
-    st.info("Écriture de la vidéo...")
+    st.info("Écriture de la vidéo (cela peut prendre jusqu'à 30 secondes)...")
     video.write_videofile(
         output_path,
         fps=24,
@@ -255,7 +257,7 @@ def generate_video(product_name, description, cta, bg_color, images, voice, musi
         logger=None
     )
     
-    # Nettoyer les fichiers temporaires
+    # Nettoyage
     for f in os.listdir(temp_dir):
         if f != os.path.basename(output_path):
             try:
@@ -279,7 +281,7 @@ if generate_btn:
                 if product_images:
                     for img_file in product_images[:10]:
                         pil_img = Image.open(img_file).convert('RGB')
-                        pil_img = pil_img.resize((1280, 720), Image.Resampling.LANCZOS)
+                        pil_img = pil_img.resize((854, 480), Image.Resampling.LANCZOS)
                         img_np = np.array(pil_img)
                         image_list.append(img_np)
                     st.success(f"{len(image_list)} images chargées")
@@ -301,7 +303,6 @@ if generate_btn:
                     logo_data
                 )
                 
-                # Vérifier que le fichier existe et a une taille > 0
                 if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
                     with video_placeholder.container():
                         st.success("✅ Vidéo publicitaire générée avec succès !")
