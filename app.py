@@ -15,42 +15,42 @@ import sys
 import shutil
 
 # ====================================================================
-# Gestion robuste de FFmpeg
+# Gestion robuste de FFmpeg (AVANT d'importer moviepy)
 # ====================================================================
 ffmpeg_path = None
 
-# 1) Essayer imageio-ffmpeg (recommandé)
+# 1) Essayer via imageio-ffmpeg (recommandé pour Streamlit Cloud)
 try:
     import imageio_ffmpeg
     ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
-    from moviepy.config import change_settings
-    change_settings({"FFMPEG_BINARY": ffmpeg_path})
-    st.info("✅ FFmpeg chargé via imageio-ffmpeg")
+    print(f"✅ FFmpeg chargé via imageio-ffmpeg : {ffmpeg_path}")
 except ImportError:
-    # 2) Essayer de trouver ffmpeg dans le PATH
-    ffmpeg_system = shutil.which("ffmpeg")
-    if ffmpeg_system:
-        from moviepy.config import change_settings
-        change_settings({"FFMPEG_BINARY": ffmpeg_system})
-        ffmpeg_path = ffmpeg_system
-        st.info(f"✅ FFmpeg trouvé dans le système : {ffmpeg_system}")
-    else:
-        st.error("""
-        ❌ FFmpeg est introuvable.
+    # 2) Chercher dans le PATH
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path:
+        print(f"✅ FFmpeg trouvé dans le système : {ffmpeg_path}")
 
-        **Solutions :**
-        - Sur Linux : `sudo apt install ffmpeg`
-        - Sur macOS : `brew install ffmpeg`
-        - Sur Windows : téléchargez depuis https://ffmpeg.org/ et ajoutez-le au PATH.
-        - Sur Streamlit Cloud : ajoutez un fichier `packages.txt` avec la ligne `ffmpeg`.
+# 3) Si trouvé, on définit la variable d'environnement AVANT d'importer moviepy
+if ffmpeg_path:
+    os.environ["FFMPEG_BINARY"] = ffmpeg_path
+else:
+    # Aucun FFmpeg trouvé – afficher une erreur et arrêter
+    st.error("""
+    ❌ FFmpeg est introuvable.
 
-        Si vous utilisez `imageio-ffmpeg`, assurez-vous qu'il est installé :
-        `pip install imageio-ffmpeg`
-        """)
-        st.stop()
+    **Solutions :**
+    - Sur Linux : `sudo apt install ffmpeg`
+    - Sur macOS : `brew install ffmpeg`
+    - Sur Windows : téléchargez depuis https://ffmpeg.org/ et ajoutez-le au PATH.
+    - Sur Streamlit Cloud : ajoutez un fichier `packages.txt` avec la ligne `ffmpeg`.
+
+    Si vous utilisez `imageio-ffmpeg`, assurez-vous qu'il est installé :
+    `pip install imageio-ffmpeg`
+    """)
+    st.stop()
 
 # ====================================================================
-# Importer moviepy (maintenant que FFmpeg est configuré)
+# Importer moviepy (maintenant que FFMPEG_BINARY est défini)
 # ====================================================================
 try:
     import moviepy.editor as mp
@@ -69,7 +69,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# CSS
+# ---- CSS ----
 st.markdown("""
 <style>
     .main { background: #f8f9fa; }
@@ -113,7 +113,7 @@ st.markdown("""
 st.markdown('<div class="title">🎬 Générateur de Vidéo Publicitaire</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Créez des vidéos professionnelles avec voix IA, couleurs personnalisées et musique</div>', unsafe_allow_html=True)
 
-# Sidebar
+# ---- Sidebar ----
 with st.sidebar:
     st.header("⚙️ Paramètres")
     voice_lang = st.selectbox(
@@ -144,7 +144,7 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("🎨 Couleurs")
     bg_color = st.color_picker("Couleur de fond", "#1a2a4a")
-    accent_color = st.color_picker("Couleur d'accent", "#174478")
+    accent_color = st.color_picker("Couleur d'accent", "#174478")  # réservé pour extension
 
     st.markdown("---")
     st.subheader("🖼️ Logo")
@@ -169,7 +169,7 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-# Entrées principales
+# ---- Entrées principales ----
 col1, col2 = st.columns([2, 1])
 with col1:
     product_name = st.text_input("Nom du produit / service", placeholder="ex. Prisme Transfer Haïti")
@@ -179,7 +179,7 @@ with col1:
 generate_btn = st.button("🎥 Générer la vidéo", use_container_width=True)
 video_placeholder = st.empty()
 
-# ---- Helper : dégradé de fond (résolution réduite) ----
+# ---- Helper : dégradé de fond (résolution réduite pour performance) ----
 def create_gradient_bg(width=640, height=360, color1=(20,40,80), color2=(10,20,50)):
     img = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(img)
@@ -191,7 +191,7 @@ def create_gradient_bg(width=640, height=360, color1=(20,40,80), color2=(10,20,5
         draw.line([(0, y), (width, y)], fill=(r, g, b))
     return img
 
-# ---- Création d'une diapositive ----
+# ---- Création d'une diapositive (fond + logo éventuel) ----
 def create_slide(bg_color, image=None, duration=3, logo_img=None):
     if image is not None:
         bg_img = Image.fromarray(image)
@@ -216,7 +216,7 @@ def create_slide(bg_color, image=None, duration=3, logo_img=None):
 def generate_video(product_name, description, cta, bg_color, images, voice, music_file, logo_data):
     temp_dir = tempfile.mkdtemp()
     
-    # Message de clôture en français
+    # Message de clôture en français (modifiable)
     closing_message = (
         "Pour plus d'informations, contactez-nous au (509) 4738-5663 ou par courriel à deslandes78@gmail.com. "
         "Si vous souhaitez une publicité pour votre entreprise, contactez Gesner Deslandes chez GlobalInternet.py."
@@ -224,7 +224,7 @@ def generate_video(product_name, description, cta, bg_color, images, voice, musi
     
     script = f"{product_name}. {description} {cta}. {closing_message}"
     
-    # Génération audio
+    # Génération audio avec edge-tts
     async def tts():
         communicate = edge_tts.Communicate(script, voice)
         audio_path = os.path.join(temp_dir, "voiceover.mp3")
@@ -260,7 +260,7 @@ def generate_video(product_name, description, cta, bg_color, images, voice, musi
     video = mp.concatenate_videoclips(slides, method="compose")
     video = video.set_audio(voice_audio)
     
-    # Musique de fond
+    # Musique de fond (si fournie)
     if music_file:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
             tmp.write(music_file.read())
@@ -270,7 +270,7 @@ def generate_video(product_name, description, cta, bg_color, images, voice, musi
             bg_music = bg_music.loop(duration=video.duration)
         else:
             bg_music = bg_music.subclip(0, video.duration)
-        bg_music = bg_music.volumex(0.3)
+        bg_music = bg_music.volumex(0.3)  # volume réduit pour ne pas couvrir la voix
         final_audio = mp.CompositeAudioClip([voice_audio, bg_music])
         video = video.set_audio(final_audio)
     
@@ -287,7 +287,7 @@ def generate_video(product_name, description, cta, bg_color, images, voice, musi
         logger=None
     )
     
-    # Nettoyage
+    # Nettoyer les fichiers temporaires (sauf la vidéo)
     for f in os.listdir(temp_dir):
         if f != os.path.basename(output_path):
             try:
@@ -340,7 +340,7 @@ if generate_btn:
                             video_bytes = f.read()
                         st.info(f"Taille de la vidéo : {len(video_bytes)//1024} Ko")
                         
-                        # Affichage via HTML5 video
+                        # Affichage via lecteur HTML5
                         b64 = base64.b64encode(video_bytes).decode()
                         video_html = f"""
                         <video width="100%" controls autoplay>
